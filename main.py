@@ -445,7 +445,7 @@ async def handle_docs(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     # Замените на ваш токен
-    token = "8601642611:AAHbGJk47zOBAeQy48zTXgWWTtVY-rHjh34"
+    token = "8375761353:AAGSbrcGXYhEdJ5iPSC3k9cD26uXnR30gVA"
     if not token:
         raise RuntimeError("TELEGRAM_BOT_TOKEN не задан")
 
