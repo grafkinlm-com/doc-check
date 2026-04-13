@@ -8,8 +8,9 @@ from datetime import datetime
 from difflib import SequenceMatcher
 from docx import Document
 from lxml import etree
-from telegram import Update
+from telegram import Update, constants
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram.error import BadRequest
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -151,16 +152,38 @@ def calc_similarity(text1, text2, pages1=None, pages2=None):
 user_mode = {}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    username = update.effective_user.username or f"user_{update.effective_user.id}"
-    log_activity(update.effective_user.id, username, "start", "")
+    user = update.effective_user
+    chat = update.effective_chat
+    username = user.username or f"user_{user.id}"
+    log_activity(user.id, username, "start", "")
     
-    await update.message.reply_text(
+    welcome_text = (
         "Привет! Выбери режим:\n"
         "/add — добавить файл в базу\n"
         "/check — проверить файл на схожесть\n"
         "/list — показать все файлы\n"
         "/delete — удалить файлы"
     )
+
+    # Если команда вызвана в группе или супергруппе
+    if chat.type in [constants.ChatType.GROUP, constants.ChatType.SUPERGROUP]:
+        try:
+            # Удаляем сообщение пользователя в группе
+            await update.message.delete()
+        except BadRequest:
+            logger.warning("Не удалось удалить сообщение в группе (возможно, нет прав администратора)")
+        
+        try:
+            # Отправляем приветствие в личные сообщения
+            await context.bot.send_message(chat_id=user.id, text=welcome_text)
+        except BadRequest:
+            # Если пользователь еще не начинал диалог с ботом, мы не сможем написать первыми
+            # В таком случае можно оставить уведомление в группе, но по условию задачи мы переходим в ЛС
+            pass
+        return
+
+    # Если это уже ЛС
+    await update.message.reply_text(welcome_text)
 
 async def add_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -299,10 +322,10 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for timestamp, action, details in actions:
             action_label = action_display_map.get(action, action)
             time_str = timestamp.split(" ")[1][:5] if " " in timestamp else timestamp
-            date_str = timestamp.split(" ")[0] if " " in timestamp else timestamp
-            
-            detail_str = f" [{details}]" if details else ""
-            report += f"  {date_str} {time_str} — {action_label}{detail_str}\n"
+            report += f"  • {time_str} — {action_label}"
+            if details:
+                report += f" ({details})"
+            report += "\n"
         report += "\n"
     
     # Если отчёт слишком длинный, отправляем по частям
@@ -421,7 +444,8 @@ async def handle_docs(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ─── Точка входа ──────────────────────────────────────────────────────────────
 
 def main():
-    token = 8601642611:AAHbGJk47zOBAeQy48zTXgWWTtVY-rHjh34
+    # Замените на ваш токен
+    token = "8601642611:AAHbGJk47zOBAeQy48zTXgWWTtVY-rHjh34"
     if not token:
         raise RuntimeError("TELEGRAM_BOT_TOKEN не задан")
 
